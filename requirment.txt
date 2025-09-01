@@ -1,4 +1,0 @@
-streamlit
-mongodb
-google-generativeai
-python-dotenv
