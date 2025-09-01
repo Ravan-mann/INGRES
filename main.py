@@ -1,11 +1,5 @@
 import streamlit as st
 import google.generativeai as genai
-import os # Import os for potential environment variable use
-
-# Configure the Gemini API key
-# IMPORTANT: Replace "AIzaSyDgeMV9-MPxx10FUo_U2yJQoq47obU6Yno" with your actual Gemini API key.
-# For production, consider using Streamlit's secrets management (st.secrets["GEMINI_API_KEY"])
-# or environment variables (os.getenv("GEMINI_API_KEY")) for security.
 try:
     genai.configure(api_key="AIzaSyDgeMV9-MPxx10FUo_U2yJQoq47obU6Yno")
 except Exception as e:
