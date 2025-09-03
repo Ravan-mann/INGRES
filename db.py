@@ -1,17 +1,17 @@
 import os
+import pandas as pd
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from dotenv import load_dotenv
+
+# --- Database Connection ---
 
 def get_db_connection():
     """
     Establishes a connection to the MongoDB database.
     Returns the database object or None if connection fails.
     """
-    # Load environment variables from .env file
     load_dotenv()
-
-    # Get the connection string from environment variables
     mongo_uri = os.getenv("MONGO_URI")
 
     if not mongo_uri:
@@ -19,17 +19,12 @@ def get_db_connection():
         return None
 
     try:
-        # Create a new client and connect to the server
-        client = MongoClient(mongo_uri)
-        
-        # Send a ping to confirm a successful connection
-        client.admin.command('ping')
-        print("Pinged your deployment. You successfully connected to MongoDB!")
-        
-        # Get the default database specified in the URI
+        client = MongoClient(mongo_uri, serverSelectionTimeoutMS=5000)
+        # The ismaster command is cheap and does not require auth.
+        client.admin.command('ismaster')
+        print("Successfully connected to MongoDB!")
         db = client.get_default_database()
         return db
-
     except ConnectionFailure as e:
         print(f"Could not connect to MongoDB: {e}")
         return None
@@ -37,33 +32,37 @@ def get_db_connection():
         print(f"An error occurred: {e}")
         return None
 
-# Example of how to use the connection
-if __name__ == "__main__":
+# --- Data Loading Script ---
+
+def load_csv_to_mongo(csv_path="data/final_nhs-wq_pre_2022_compressed.csv", collection_name="water_quality"):
+    """
+    Loads data from the specified CSV file into a MongoDB collection.
+    This function will drop the existing collection to prevent duplicates.
+    """
     db = get_db_connection()
+    if not db:
+        return
 
-    if db:
-        try:
-            # 1. Create: Insert a document into a 'users' collection
-            users_collection = db.users
-            result = users_collection.insert_one({"name": "Jane Doe", "email": "jane.doe@example.com"})
-            print(f"Inserted a document with id: {result.inserted_id}")
+    try:
+        # Drop the collection if it exists to ensure a fresh import
+        if collection_name in db.list_collection_names():
+            print(f"Dropping existing collection: '{collection_name}'")
+            db[collection_name].drop()
 
-            # 2. Read: Find the document
-            found_user = users_collection.find_one({"name": "Jane Doe"})
-            print(f"Found user: {found_user}")
+        print(f"Reading data from {csv_path}...")
+        df = pd.read_csv(csv_path, na_values=['#VALUE!'])
+        df.columns = [col.strip() for col in df.columns]
+        data = df.to_dict(orient='records')
 
-            # 3. Update: Change a field in the document
-            users_collection.update_one({"name": "Jane Doe"}, {"$set": {"email": "jane.d@example.com"}})
-            updated_user = users_collection.find_one({"name": "Jane Doe"})
-            print(f"Updated user: {updated_user}")
+        print(f"Inserting {len(data)} records into '{collection_name}' collection...")
+        db[collection_name].insert_many(data)
+        print("Data loaded successfully into MongoDB.")
 
-            # 4. Delete: Remove the document
-            users_collection.delete_one({"name": "Jane Doe"})
-            print("User deleted successfully.")
+    except FileNotFoundError:
+        print(f"Error: The file was not found at {csv_path}")
+    except Exception as e:
+        print(f"An error occurred during data loading: {e}")
 
-        except Exception as e:
-            print(f"An error occurred during database operation: {e}")
-        finally:
-            # Close the connection when the app is done
-            db.client.close()
-            print("MongoDB connection closed.")
+if __name__ == "__main__":
+    print("Running database setup to load CSV data into MongoDB...")
+    load_csv_to_mongo()
