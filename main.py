@@ -57,4 +57,3 @@ if prompt:
             
             response = model.generate_content(context_prompt)
             st.markdown(response.text)
-
